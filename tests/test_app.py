@@ -5,66 +5,129 @@ from src.app import app
 client = TestClient(app)
 
 
-def test_root_redirect():
-    """Test that root endpoint redirects to static/index.html"""
-    response = client.get("/", follow_redirects=False)
-    assert response.status_code == 307
-    assert response.headers["location"] == "/static/index.html"
+class TestRootEndpoint:
+    """Tests for the root endpoint"""
+
+    def test_root_redirect(self):
+        """Test that root endpoint redirects to static/index.html"""
+        # Arrange
+        expected_status = 307
+        expected_location = "/static/index.html"
+
+        # Act
+        response = client.get("/", follow_redirects=False)
+
+        # Assert
+        assert response.status_code == expected_status
+        assert response.headers["location"] == expected_location
 
 
-def test_get_activities():
-    """Test that all activities are returned"""
-    response = client.get("/activities")
-    assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, dict)
-    assert len(data) > 0
-    assert "Chess Club" in data
+class TestActivitiesEndpoint:
+    """Tests for the activities endpoint"""
+
+    def test_get_activities_returns_all_activities(self):
+        """Test that all activities are returned"""
+        # Arrange
+        expected_activity = "Chess Club"
+
+        # Act
+        response = client.get("/activities")
+        data = response.json()
+
+        # Assert
+        assert response.status_code == 200
+        assert isinstance(data, dict)
+        assert len(data) > 0
+        assert expected_activity in data
 
 
-def test_signup_for_activity_success():
-    """Test successful signup for an activity"""
-    response = client.post(
-        "/activities/Tennis%20Club/signup?email=newstudent@mergington.edu"
-    )
-    assert response.status_code == 200
-    assert "Signed up" in response.json()["message"]
+class TestSignupEndpoint:
+    """Tests for the signup endpoint"""
+
+    def test_signup_for_activity_success(self):
+        """Test successful signup for an activity"""
+        # Arrange
+        activity_name = "Tennis%20Club"
+        email = "newstudent@mergington.edu"
+
+        # Act
+        response = client.post(
+            f"/activities/{activity_name}/signup?email={email}"
+        )
+
+        # Assert
+        assert response.status_code == 200
+        assert "Signed up" in response.json()["message"]
+
+    def test_signup_duplicate_fails(self):
+        """Test that duplicate signup is rejected"""
+        # Arrange
+        activity_name = "Chess%20Club"
+        email = "michael@mergington.edu"
+        expected_status = 400
+        expected_detail = "already signed up"
+
+        # Act
+        response = client.post(
+            f"/activities/{activity_name}/signup?email={email}"
+        )
+
+        # Assert
+        assert response.status_code == expected_status
+        assert expected_detail in response.json()["detail"]
+
+    def test_signup_nonexistent_activity(self):
+        """Test signup fails for non-existent activity"""
+        # Arrange
+        activity_name = "Nonexistent%20Club"
+        email = "test@mergington.edu"
+        expected_status = 404
+        expected_detail = "Activity not found"
+
+        # Act
+        response = client.post(
+            f"/activities/{activity_name}/signup?email={email}"
+        )
+
+        # Assert
+        assert response.status_code == expected_status
+        assert expected_detail in response.json()["detail"]
 
 
-def test_signup_duplicate_fails():
-    """Test that duplicate signup is rejected"""
-    email = "michael@mergington.edu"
-    response = client.post(
-        f"/activities/Chess%20Club/signup?email={email}"
-    )
-    assert response.status_code == 400
-    assert "already signed up" in response.json()["detail"]
+class TestDeleteParticipantEndpoint:
+    """Tests for the delete participant endpoint"""
 
+    def test_delete_participant_success(self):
+        """Test successful removal of a participant"""
+        # Arrange
+        activity_name = "Art%20Club"
+        email = "test-delete@mergington.edu"
 
-def test_signup_nonexistent_activity():
-    """Test signup fails for non-existent activity"""
-    response = client.post(
-        "/activities/Nonexistent%20Club/signup?email=test@mergington.edu"
-    )
-    assert response.status_code == 404
-    assert "Activity not found" in response.json()["detail"]
+        # First, sign up the participant
+        client.post(f"/activities/{activity_name}/signup?email={email}")
 
+        # Act
+        response = client.delete(
+            f"/activities/{activity_name}/participants/{email}"
+        )
 
-def test_delete_participant_success():
-    """Test successful removal of a participant"""
-    email = "test-delete@mergington.edu"
-    # First, add a participant
-    client.post(f"/activities/Art%20Club/signup?email={email}")
-    # Then delete them
-    response = client.delete(f"/activities/Art%20Club/participants/{email}")
-    assert response.status_code == 200
-    assert "Unregistered" in response.json()["message"]
+        # Assert
+        assert response.status_code == 200
+        assert "Unregistered" in response.json()["message"]
 
+    def test_delete_nonexistent_participant(self):
+        """Test deletion fails for non-existent participant"""
+        # Arrange
+        activity_name = "Science%20Club"
+        email = "nonexistent@mergington.edu"
+        expected_status = 404
+        expected_detail = "Participant not found"
 
-def test_delete_nonexistent_participant():
-    """Test deletion fails for non-existent participant"""
-    response = client.delete(
-        "/activities/Science%20Club/participants/nonexistent@mergington.edu"
-    )
-    assert response.status_code == 404
-    assert "Participant not found" in response.json()["detail"]
+        # Act
+        response = client.delete(
+            f"/activities/{activity_name}/participants/{email}"
+        )
+
+        # Assert
+        assert response.status_code == expected_status
+        assert expected_detail in response.json()["detail"]
